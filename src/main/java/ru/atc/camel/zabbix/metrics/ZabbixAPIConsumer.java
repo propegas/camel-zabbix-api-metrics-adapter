@@ -1,10 +1,22 @@
 package ru.atc.camel.zabbix.metrics;
 
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import io.github.hengyunabc.zabbix.api.DefaultZabbixApi;
+import io.github.hengyunabc.zabbix.api.Request;
+import io.github.hengyunabc.zabbix.api.RequestBuilder;
+import org.apache.camel.Exchange;
+import org.apache.camel.Processor;
+import org.apache.camel.impl.ScheduledPollConsumer;
+import org.apache.http.client.ClientProtocolException;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.at_consulting.itsm.device.Device;
+import ru.at_consulting.itsm.event.Event;
+
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-//import java.security.KeyManagementException;
-//import java.security.KeyStore;
-//import java.security.KeyStoreException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -15,36 +27,23 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+//import java.security.KeyManagementException;
+//import java.security.KeyStore;
+//import java.security.KeyStoreException;
 //import javax.net.ssl.SSLContext;
-
-import org.apache.camel.Exchange;
-import org.apache.camel.Processor;
-import org.apache.camel.impl.ScheduledPollConsumer;
 //import org.apache.http.HttpVersion;
-import org.apache.http.client.ClientProtocolException;
 //import org.apache.http.client.CookieStore;
 //import org.apache.http.client.config.RequestConfig;
 //import org.apache.http.client.methods.HttpPut;
 //import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 //import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
-import org.apache.http.impl.client.CloseableHttpClient;
 //import org.apache.http.impl.client.DefaultHttpClient;
 //import org.apache.http.impl.client.HttpClientBuilder;
 //import org.apache.http.impl.client.HttpClients;
 //import org.apache.http.params.CoreProtocolPNames;
 //import org.apache.http.ssl.SSLContextBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.alibaba.fastjson.JSONArray;
-import com.alibaba.fastjson.JSONObject;
 //import com.google.gson.JsonObject;
-import io.github.hengyunabc.zabbix.api.DefaultZabbixApi;
-import io.github.hengyunabc.zabbix.api.Request;
-import io.github.hengyunabc.zabbix.api.RequestBuilder;
 //import net.sf.ehcache.search.expression.And;
-import ru.at_consulting.itsm.device.Device;
-import ru.at_consulting.itsm.event.Event;
 //import scala.xml.dtd.ParameterEntityDecl;
 
 public class ZabbixAPIConsumer extends ScheduledPollConsumer {
@@ -107,8 +106,8 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
 		// Long timestamp;
 
-		List<Map<String, Object>> itemsList = new ArrayList<Map<String, Object>>();
-		List<Map<String, Object>> webitemsList = new ArrayList<Map<String, Object>>();
+		List<Map<String, Object>> itemsList;
+		List<Map<String, Object>> webitemsList;
 		
 		List<Map<String, Object>> listFinal = new ArrayList<Map<String, Object>>();
 		
@@ -151,15 +150,15 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 				listFinal.addAll(webitemsList);
 			
 			logger.info("Create Exchange containers...");
-			for (int i = 0; i < listFinal.size(); i++) {
+			for (Map<String, Object> aListFinal : listFinal) {
 				logger.info("Create Exchange container");
 				Exchange exchange = getEndpoint().createExchange();
-				
-				exchange.getIn().setBody(listFinal.get(i));
+
+				exchange.getIn().setBody(aListFinal);
 				//exchange.getIn().setHeader("DeviceId", listFinal.get(i).getId());
 				//exchange.getIn().setHeader("DeviceType", listFinal.get(i).getDeviceType());
 				exchange.getIn().setHeader("queueName", "Metrics");
-				
+
 
 				try {
 					getProcessor().process(exchange);
@@ -167,7 +166,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				
+
 			}
 			
 			logger.info("Sended Metrics: " + listFinal.size());
@@ -185,20 +184,28 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 			logger.error(String.format("Error while get Devices from API: %s ", e));
 			genErrorMessage(e.getMessage() + " " + e.toString());
 			httpClient.close();
-			zabbixApi.destory();
+			if (zabbixApi != null) {
+				zabbixApi.destory();
+			}
 			return 0;
 		} catch (Throwable e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-			logger.error(String.format("Error while get Devices from API: %s ", e));
+			logger.error(String.format("Throwable while get Devices from API: %s ", e));
 			genErrorMessage(e.getMessage() + " " + e.toString());
 			httpClient.close();
-			zabbixApi.destory();
+			if (zabbixApi != null) {
+				zabbixApi.destory();
+			}
 			return 0;
 		} finally {
-			logger.debug(String.format(" **** Close zabbixApi Client: %s", zabbixApi.toString()));
+			if (zabbixApi != null) {
+				logger.debug(String.format(" **** Close zabbixApi Client: %s", zabbixApi.toString()));
+			}
 			// httpClient.close();
-			zabbixApi.destory();
+			if (zabbixApi != null) {
+				zabbixApi.destory();
+			}
 			// dataSource.close();
 			// return 0;
 		}
@@ -242,9 +249,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 			e.printStackTrace();
 			throw new RuntimeException("Failed get JSON response result for all Web Items.");
 		}
-		List<Map<String, Object>> deviceList = new ArrayList<Map<String, Object>>();
+		List<Map<String, Object>> deviceList = new ArrayList<>();
 		
-		List<Map<String, Object>> listFinal = new ArrayList<Map<String, Object>>();
+		List<Map<String, Object>> listFinal = new ArrayList<>();
 		
 		//List<Device> listFinal = new ArrayList<Device>();
 		
@@ -269,9 +276,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 				name = getTransformedItemName(name, key);
 			}
 			
-			String externalid = getParentElements(zabbixApi, item.getString("itemid"), name, hostid, hostname);
+			String externalid = getParentElements(name, hostid, hostname);
 			
-			Map<String, Object> answer = new HashMap<String, Object>();
+			Map<String, Object> answer = new HashMap<>();
 			answer.put("itemid", itemid);
 			answer.put("itemname", name);
 			answer.put("type", value_type);
@@ -330,9 +337,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 			e.printStackTrace();
 			throw new RuntimeException("Failed get JSON response result for all CI Items.");
 		}
-		List<Map<String, Object>> deviceList = new ArrayList<Map<String, Object>>();
+		List<Map<String, Object>> deviceList = new ArrayList<>();
 		
-		List<Map<String, Object>> listFinal = new ArrayList<Map<String, Object>>();
+		List<Map<String, Object>> listFinal = new ArrayList<>();
 		
 		//List<Device> listFinal = new ArrayList<Device>();
 		
@@ -357,9 +364,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 				name = getTransformedItemName(name, key);
 			}
 			
-			String externalid = getParentElements(zabbixApi, item.getString("itemid"), name, hostid, hostname);
+			String externalid = getParentElements(name, hostid, hostname);
 				
-			Map<String, Object> answer = new HashMap<String, Object>();
+			Map<String, Object> answer = new HashMap<>();
 			answer.put("itemid", itemid);
 			answer.put("itemname", name);
 			answer.put("type", value_type);
@@ -395,7 +402,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 		Pattern p = Pattern.compile("(.*)\\[(.*)\\]");
 		Matcher matcher = p.matcher(key);
 		
-		String keyparams = "";
+		String keyparams;
 		//String webscenario = "";
 		//String webstep = "";
 		
@@ -408,7 +415,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 			
 			logger.debug("*** Finded Zabbix Item key with Pattern: " + key);
 			// save as ne CI name
-			keyparams = matcher.group(2).toString();
+			keyparams = matcher.group(2);
 			
 			// get scenario and step from key params
 			//String[] params = new String[] { } ;
@@ -427,7 +434,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 		
 		logger.debug("Item name: " + name);
 		
-		String param = "";
+		String param;
 		int paramnumber;
 		Matcher m = Pattern.compile("\\$\\d+").matcher(name);
 		while (m.find()) {
@@ -449,7 +456,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
 	}
 
-	private String getParentElements(DefaultZabbixApi zabbixApi, String itemid, String itemname, String hostid, String hostname) {
+	private String getParentElements(String itemname, String hostid, String hostname) {
 		
 		String pattern = endpoint.getConfiguration().getZabbix_item_ke_pattern();
 		
@@ -458,14 +465,14 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 		Pattern p = Pattern.compile(pattern);
 		Matcher matcher = p.matcher(itemname);
 		
-		String ciid = "";
+		String ciid;
 		//String hostnameend = "";
 		
 		// if Item has CI pattern
 		if (matcher.matches()) {
 			logger.debug("*** Finded Zabbix Item with Pattern as CI: " + itemname);
 			// save as ne CI name
-			itemname = matcher.group(1).toString().toUpperCase();
+			itemname = matcher.group(1).toUpperCase();
 
 		    // get SHA-1 hash for hostname-item block for saving as ciid
 		    // Example:
@@ -503,7 +510,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 		Pattern p = Pattern.compile("(.*)\\[(.*)\\]");
 		Matcher matcher = p.matcher(key);
 		
-		String keyparams = "";
+		String keyparams;
 		String webscenario = "";
 		String webstep = "";
 		
@@ -514,10 +521,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 			
 			logger.debug("*** Finded Zabbix Web Item key with Pattern: " + key);
 			// save as ne CI name
-			keyparams = matcher.group(2).toString();
+			keyparams = matcher.group(2);
 			
 			// get scenario and step from key params
-			String[] params = new String[] { "", "", ""} ;
+			String[] params;
 			params = keyparams.split(",");
 			logger.debug(String.format("*** Finded Zabbix Web Item key params (size): %d ", params.length));
 			
@@ -630,10 +637,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 	
 	private static String convertByteArrayToHexString(byte[] arrayBytes) {
         StringBuffer stringBuffer = new StringBuffer();
-        for (int i = 0; i < arrayBytes.length; i++) {
-            stringBuffer.append(Integer.toString((arrayBytes[i] & 0xff) + 0x100, 16)
-                    .substring(1));
-        }
+		for (byte arrayByte : arrayBytes) {
+			stringBuffer.append(Integer.toString((arrayByte & 0xff) + 0x100, 16)
+					.substring(1));
+		}
         return stringBuffer.toString();
     }
 
