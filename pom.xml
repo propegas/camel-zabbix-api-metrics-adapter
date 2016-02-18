@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>ru.atc.monitoring</groupId>
 	<artifactId>camel-zabbix-api-metrics-adapter</artifactId>
-	<version>0.1-SNAPSHOT</version>
+	<version>0.2-SNAPSHOT</version>
 
 	<properties>
 		<camel-version>2.15.3</camel-version>
@@ -160,7 +160,7 @@
 							<goal>copy-resources</goal>
 						</goals>
 						<configuration>
-							<outputDirectory>${basedir}/target/${project.build.targetName}</outputDirectory>
+							<outputDirectory>${basedir}/target/${project.build.targetName}-${version}</outputDirectory>
 							<resources>
 								<resource>
 									<directory>${basedir}/src/main/resources</directory>
@@ -226,5 +226,5 @@
 	<organization>
 		<name>AT Consulting</name>
 	</organization>
-	<name>Zabbix Devices API Integration</name>
+	<name>Zabbix Metrics API Integration</name>
 </project>

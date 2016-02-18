@@ -8,14 +8,12 @@ import io.github.hengyunabc.zabbix.api.RequestBuilder;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.impl.ScheduledPollConsumer;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.at_consulting.itsm.device.Device;
 import ru.at_consulting.itsm.event.Event;
 
-import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -102,7 +100,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 		return timeout;
 	}
 
-	private int processSearchDevices() throws ClientProtocolException, IOException, Exception {
+	private int processSearchDevices() throws Exception {
 
 		// Long timestamp;
 

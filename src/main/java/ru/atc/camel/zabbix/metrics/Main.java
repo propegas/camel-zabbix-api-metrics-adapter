@@ -1,18 +1,6 @@
 package ru.atc.camel.zabbix.metrics;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
-
-//import java.io.File;
-import javax.jms.ConnectionFactory;
-
-//import javax.sql.DataSource;
-
 import org.apache.activemq.ActiveMQConnectionFactory;
-//import org.apache.camel.CamelContext;
-//import org.apache.camel.Endpoint;
 import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Processor;
@@ -22,16 +10,27 @@ import org.apache.camel.component.properties.PropertiesComponent;
 import org.apache.camel.component.sql.SqlComponent;
 import org.apache.camel.model.dataformat.JsonDataFormat;
 import org.apache.camel.model.dataformat.JsonLibrary;
-//import org.apache.camel.spring.SpringCamelContext;
 import org.apache.commons.dbcp.BasicDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.at_consulting.itsm.event.Event;
+
+import javax.jms.ConnectionFactory;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Objects;
+import java.util.Properties;
+
+//import java.io.File;
+//import javax.sql.DataSource;
+//import org.apache.camel.CamelContext;
+//import org.apache.camel.Endpoint;
+//import org.apache.camel.spring.SpringCamelContext;
 //import org.springframework.context.ApplicationContext;
 //import org.springframework.context.support.ClassPathXmlApplicationContext;
-
 //import ru.at_consulting.itsm.device.Device;
 //import org.apache.camel.processor.idempotent.FileIdempotentRepository;
-import ru.at_consulting.itsm.event.Event;
 
 public class Main {
 	
@@ -96,17 +95,17 @@ public class Main {
 			}
 		}
 		
-		if (activemq_port == null || activemq_port == "" )
+		if (activemq_port == null || Objects.equals(activemq_port, ""))
 			activemq_port = "61616";
-		if (activemq_ip == null || activemq_ip == "" )
+		if (activemq_ip == null || Objects.equals(activemq_ip, ""))
 			activemq_ip = "172.20.19.195";
-		if (sql_ip == null || sql_ip == "" )
+		if (sql_ip == null || Objects.equals(sql_ip, ""))
 			sql_ip = "192.168.157.73";
-		if (sql_database == null || sql_database == "" )
+		if (sql_database == null || Objects.equals(sql_database, ""))
 			sql_database = "monitoring";
-		if (sql_user == null || sql_user == "" )
+		if (sql_user == null || Objects.equals(sql_user, ""))
 			sql_user = "postgres";
-		if (sql_password == null || sql_password == "" )
+		if (sql_password == null || Objects.equals(sql_password, ""))
 			sql_password = "";
 		
 		logger.info("activemq_ip: " + activemq_ip);
