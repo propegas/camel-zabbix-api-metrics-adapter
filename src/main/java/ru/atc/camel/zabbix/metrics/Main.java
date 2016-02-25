@@ -169,7 +169,10 @@ public class Main {
 		    			+ "username={{username}}&"
 		    			+ "password={{password}}&"
 		    			+ "adaptername={{adaptername}}&"
-		    			+ "zabbix_item_ke_pattern={{zabbix_item_ke_pattern}}&"
+						+ "itemCiPattern={{zabbix_item_ke_pattern}}&"
+						+ "itemCiSearchPattern={{zabbix_item_ke_search_pattern}}&"
+						+ "itemCiParentPattern={{zabbix_item_ci_parent_pattern}}&"
+						+ "itemCiTypePattern={{zabbix_item_ci_type_pattern}}&"
 		    			+ "source={{source}}&"
 		    			+ "zabbix_item_description_pattern={{zabbix_item_description_pattern}}&"
 		    			+ "zabbixip={{zabbixip}}")

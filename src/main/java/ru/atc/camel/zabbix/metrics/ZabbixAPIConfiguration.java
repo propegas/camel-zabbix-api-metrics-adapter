@@ -18,9 +18,15 @@ public class ZabbixAPIConfiguration {
 	
 	private String zabbixapiurl;
 	
-	private String zabbix_item_description_pattern; 
-	
-	private String zabbix_item_ke_pattern;
+	private String zabbix_item_description_pattern;
+
+	private String itemCiPattern;
+
+	private String itemCiSearchPattern;
+
+	private String itemCiParentPattern;
+
+	private String itemCiTypePattern;
 	
 	private String test;
 	
@@ -108,13 +114,35 @@ public class ZabbixAPIConfiguration {
 		this.test = test;
 	}
 
-	public String getZabbix_item_ke_pattern() {
-		return zabbix_item_ke_pattern;
+		public String getItemCiPattern() {
+		return itemCiPattern;
 	}
 
-	public void setZabbix_item_ke_pattern(String zabbix_item_ke_pattern) {
-		this.zabbix_item_ke_pattern = zabbix_item_ke_pattern;
+	public void setItemCiPattern(String itemCiPattern) {
+		this.itemCiPattern = itemCiPattern;
 	}
 
+	public String getItemCiSearchPattern() {
+		return itemCiSearchPattern;
+	}
 
+	public void setItemCiSearchPattern(String itemCiSearchPattern) {
+		this.itemCiSearchPattern = itemCiSearchPattern;
+	}
+
+	public String getItemCiParentPattern() {
+		return itemCiParentPattern;
+	}
+
+	public void setItemCiParentPattern(String itemCiParentPattern) {
+		this.itemCiParentPattern = itemCiParentPattern;
+	}
+
+	public String getItemCiTypePattern() {
+		return itemCiTypePattern;
+	}
+
+	public void setItemCiTypePattern(String itemCiTypePattern) {
+		this.itemCiTypePattern = itemCiTypePattern;
+	}
 }

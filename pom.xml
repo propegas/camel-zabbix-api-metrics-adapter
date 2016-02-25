@@ -160,7 +160,7 @@
 							<goal>copy-resources</goal>
 						</goals>
 						<configuration>
-							<outputDirectory>${basedir}/target/${project.build.targetName}-${version}</outputDirectory>
+							<outputDirectory>${basedir}/target/${project.build.targetName}</outputDirectory>
 							<resources>
 								<resource>
 									<directory>${basedir}/src/main/resources</directory>
@@ -206,7 +206,7 @@
 						</manifestEntries>
 					</archive>
 
-					<finalName>${project.build.targetName}/${project.build.targetName}</finalName>
+					<finalName>${project.build.targetName}/${project.build.targetName}-${project.version}</finalName>
 				</configuration>
 			</plugin>
 
