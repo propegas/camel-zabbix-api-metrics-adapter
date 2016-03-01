@@ -5,6 +5,7 @@ import org.apache.camel.Exchange;
 import org.apache.camel.LoggingLevel;
 import org.apache.camel.Processor;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.component.jdbc.JdbcComponent;
 import org.apache.camel.component.jms.JmsComponent;
 import org.apache.camel.component.properties.PropertiesComponent;
 import org.apache.camel.component.sql.SqlComponent;
@@ -34,7 +35,6 @@ import java.util.Properties;
 
 public class Main {
 	
-	private static Logger logger = LoggerFactory.getLogger(Main.class);
 	public static String activemq_port = null;
 	public static String activemq_ip = null;
 	public static String sql_ip = null;
@@ -42,6 +42,8 @@ public class Main {
 	public static String sql_user = null;
 	public static String sql_password = null;
 	public static String usejms = null;
+	private static Logger logger = LoggerFactory.getLogger(Main.class);
+
 	public static void main(String[] args) throws Exception {
 		
 		logger.info("Starting Custom Apache Camel component example");
@@ -145,6 +147,10 @@ public class Main {
 				BasicDataSource ds = setupDataSource();
 				sql.setDataSource(ds);
 				getContext().addComponent("sql", sql);
+
+				JdbcComponent jdbc = new JdbcComponent();
+				jdbc.setDataSource(ds);
+				getContext().addComponent("jdbc", jdbc);
 				
 							
 				// Heartbeats
@@ -182,6 +188,12 @@ public class Main {
 						//.to("sql:{{sql.insertMetric}}?dataSource=dataSource")
 						.to("sql:{{sql.insertMetric}}")
 						.log(LoggingLevel.DEBUG,"**** Inserted new metric ${body[itemid]}")
+						//.log("*** Metric: ${id} ${header.DeviceId}")
+						.when(header("queueName").isEqualTo("Mappings"))
+						//.to("sql:{{sql.insertMetric}}?dataSource=dataSource")
+						.to("sql:{{sql.deleteAllMetricMapping}}")
+						.to("jdbc:BasicDataSource")
+						.log(LoggingLevel.DEBUG, "**** Inserted Metrics mapping ${body[itemid]}")
 						//.log("*** Metric: ${id} ${header.DeviceId}")
 					.otherwise()
 						.choice()
