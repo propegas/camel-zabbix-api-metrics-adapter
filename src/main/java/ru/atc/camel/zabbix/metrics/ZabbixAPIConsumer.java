@@ -8,15 +8,11 @@ import io.github.hengyunabc.zabbix.api.RequestBuilder;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.impl.ScheduledPollConsumer;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.at_consulting.itsm.device.Device;
 import ru.at_consulting.itsm.event.Event;
 
-import java.io.UnsupportedEncodingException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +20,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static ru.atc.zabbix.general.CiItems.checkItemForCi;
+import static ru.atc.zabbix.general.CiItems.getTransformedItemName;
+
+//import ru.atc.zabbix.general.Ci;
 
 //import java.security.KeyManagementException;
 //import java.security.KeyStore;
@@ -52,7 +53,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
 	//private static String SavedWStoken;
 
-	private static CloseableHttpClient httpClient;
+    //private static CloseableHttpClient httpClient;
 
 	public ZabbixAPIConsumer(ZabbixAPIEndpoint endpoint, Processor processor) {
 		super(endpoint, processor);
@@ -95,28 +96,6 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         }
     }
 
-    private static String hashString(String message, String algorithm)
-            throws Exception {
-
-        try {
-            MessageDigest digest = MessageDigest.getInstance(algorithm);
-            byte[] hashedBytes = digest.digest(message.getBytes("UTF-8"));
-
-            return convertByteArrayToHexString(hashedBytes);
-        } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
-            throw new RuntimeException(
-                    "Could not generate hash from String", ex);
-        }
-    }
-
-    private static String convertByteArrayToHexString(byte[] arrayBytes) {
-        StringBuffer stringBuffer = new StringBuffer();
-        for (byte arrayByte : arrayBytes) {
-            stringBuffer.append(Integer.toString((arrayByte & 0xff) + 0x100, 16)
-                    .substring(1));
-        }
-        return stringBuffer.toString();
-    }
 
 	@Override
 	protected int poll() throws Exception {
@@ -212,7 +191,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
             logger.info("Sended Metrics: " + listFinal.size());
 
-            logger.info("Try get metrics mappings: " + listFinal.size());
+            logger.info("Try get metrics mappings...");
             String fullSql = getValueMappings(zabbixApi);
             Exchange exchange = getEndpoint().createExchange();
             exchange.getIn().setHeader("queueName", "Mappings");
@@ -230,14 +209,14 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             e.printStackTrace();
             logger.error(String.format("Error while get Devices from API: %s ", e));
             genErrorMessage(e.getMessage() + " " + e.toString());
-            httpClient.close();
+            //httpClient.close();
             return 0;
         } catch (Error e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
             logger.error(String.format("Error while get Devices from API: %s ", e));
             genErrorMessage(e.getMessage() + " " + e.toString());
-            httpClient.close();
+            //httpClient.close();
             if (zabbixApi != null) {
                 zabbixApi.destory();
             }
@@ -247,7 +226,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             e.printStackTrace();
             logger.error(String.format("Throwable while get Devices from API: %s ", e));
             genErrorMessage(e.getMessage() + " " + e.toString());
-            httpClient.close();
+            //httpClient.close();
             if (zabbixApi != null) {
                 zabbixApi.destory();
             }
@@ -392,8 +371,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 			Long timestamp = (long) Integer.parseInt(item.getString("lastclock"));
             String[] webelements = getElementsFromWebItem(key);
 
-			//Matcher m = Pattern.compile("\\$\\d+").matcher(name);
-			if (name.matches(".*\\$\\d+.*")){
+            // Matcher m = Pattern.compile("\\$\\d+").matcher(name);
+            // if item has $1-$9 macros (get it from key params)
+            if (name.matches(".*\\$\\d+.*")){
 				name = getTransformedItemName(name, key);
 			}
 
@@ -403,7 +383,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             hostreturn[2] = devicetype;
             hostreturn[3] = parentid;
              */
-			String externalid[] = checkItemForCi(name, hostid, hostname);
+            String externalid[] = checkItemForCi(name, hostid, hostname,
+                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiPattern(),
+                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiParentPattern(),
+                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiTypePattern());
 
 			Map<String, Object> answer = new HashMap<>();
 			answer.put("itemid", itemid);
@@ -497,7 +480,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             hostreturn[2] = devicetype;
             hostreturn[3] = parentid;
              */
-            String externalid[] = checkItemForCi(name, hostid, hostname);
+            String externalid[] = checkItemForCi(name, hostid, hostname,
+                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiPattern(),
+                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiParentPattern(),
+                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiTypePattern());
 
             Map<String, Object> answer = new HashMap<>();
             answer.put("itemid", itemid);
@@ -573,191 +559,6 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 		return ciid;
 	}
 */
-
-    private String getTransformedItemName(String name, String key) {
-        // TODO Auto-generated method stub
-
-        //String transformedname = "";
-        //String webstep = "";
-
-        // get params from key to item $1 placeholder
-        // Example:
-        // vfs.fs.size[/oracle,pfree]
-
-        Pattern p = Pattern.compile("(.*)\\[(.*)\\]");
-        Matcher matcher = p.matcher(key);
-
-        String keyparams;
-        //String webscenario = "";
-        //String webstep = "";
-
-        String[] params = new String[]{};
-
-        // if Web Item has webscenario pattern
-        // Example:
-        // web.test.in[WebScenario,,bps]
-        if (matcher.matches()) {
-
-            logger.debug("*** Finded Zabbix Item key with Pattern: " + key);
-            // save as ne CI name
-            keyparams = matcher.group(2);
-
-            // get scenario and step from key params
-            //String[] params = new String[] { } ;
-            params = keyparams.split(",");
-            logger.debug(String.format("*** Finded Zabbix Item key params (size): %d ", params.length));
-
-            //logger.debug(String.format("*** Finded Zabbix Item key params: %s:%s ", webscenario, webstep));
-
-
-        }
-        // if Item has no CI pattern
-        else {
-
-
-        }
-
-        logger.debug("Item name: " + name);
-
-        String param;
-        int paramnumber;
-        Matcher m = Pattern.compile("\\$\\d+").matcher(name);
-        while (m.find()) {
-            param = m.group(0);
-            paramnumber = Integer.parseInt(param.substring(1));
-            logger.debug("Found Param: " + paramnumber);
-            logger.debug("Found Param Value: " + param);
-            logger.debug("Found Param Value Replace: " + params[paramnumber - 1]);
-
-            name = name.replaceAll("\\$" + paramnumber, params[paramnumber - 1]);
-
-        }
-
-
-        //logger.debug("New Zabbix Web Item Scenario: " + webelements[0]);
-        logger.debug("New Zabbix Item Name: " + name);
-
-        return name;
-
-    }
-
-    private String[] checkItemForCi(String itemname, String hostid, String hostname) {
-
-        //logger.debug("*** Received Zabbix Item : " + itemname);
-
-        // Example item as CI :
-        // [test CI item] bla-bla
-        // [CI 2 (CIITEM)::CI 3 (CIITEM2)] trapper item status
-
-        // zabbix_item_ke_pattern=\\[(.*)\\](.*)
-        String zabbix_item_ke_pattern = endpoint.getConfiguration().getItemCiPattern();
-        Pattern itemWithCiPattern = Pattern.compile(zabbix_item_ke_pattern);
-
-        // zabbix_item_ci_parent_pattern=(.*)::(.*)
-        String zabbix_item_ci_parent_pattern = endpoint.getConfiguration().getItemCiParentPattern();
-        Pattern ciWithParentPattern = Pattern.compile(zabbix_item_ci_parent_pattern);
-
-        // zabbix_item_ci_type_pattern=(.*)\\((.*)\\)
-        String zabbix_item_ci_type_pattern = endpoint.getConfiguration().getItemCiTypePattern();
-        Pattern ciWithTypePattern = Pattern.compile(zabbix_item_ci_type_pattern);
-
-        Matcher matcher = itemWithCiPattern.matcher(itemname);
-        String ciid = "";
-        String newitemname = "";
-        String ciname;
-        String devicetype = "";
-        String parentitem;
-        String parentid = "";
-        //String hostnameend = "";
-
-        // if Item has CI pattern
-        // [CI 2 (CIITEM)::CI 3 (CIITEM2)] trapper item status
-        if (matcher.matches()) {
-
-            logger.debug("*** Finded Zabbix Item with Pattern as CI: " + itemname);
-
-            // save as CI name
-            newitemname = matcher.group(1).toUpperCase();
-
-            ciname = newitemname;
-
-            logger.debug("*** newitemname: " + newitemname);
-
-            // CI 2 (CIITEM)::CI 3 (CIITEM2)
-            Matcher matcher2 = ciWithParentPattern.matcher(newitemname);
-            if (matcher2.matches()) {
-                logger.debug("*** Finded Zabbix Item with Pattern with Parent: " + newitemname);
-                newitemname = matcher2.group(2).trim().toUpperCase();
-
-                ciname = newitemname;
-
-                parentitem = matcher2.group(1).trim().toUpperCase();
-                logger.debug("*** newitemname: " + newitemname);
-                logger.debug("*** parentitem: " + parentitem);
-
-                logger.debug(String.format("*** Trying to generate hash for ParentItem with Pattern: %s:%s",
-                        hostname, parentitem));
-                String hash = "";
-                try {
-                    hash = hashString(String.format("%s:%s", hostname, parentitem), "SHA-1");
-                } catch (Exception e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }
-                logger.debug("*** Generated Hash: " + hash);
-                parentid = hash;
-
-            }
-
-            // CI 2 (CIITEM)
-            Matcher matcher3 = ciWithTypePattern.matcher(newitemname);
-            if (matcher3.matches()) {
-                logger.debug("*** Finded Zabbix Item with Pattern with Type: " + newitemname);
-                newitemname = matcher3.group(1).trim().toUpperCase();
-                devicetype = matcher3.group(2).trim().toUpperCase();
-                logger.debug("*** newitemname: " + newitemname);
-                logger.debug("*** devicetype: " + devicetype);
-            }
-
-            // get SHA-1 hash for hostname-item block for saving as ciid
-            // Example:
-            // KRL-PHOBOSAU--PHOBOS:TEST CI ITEM
-            logger.debug(String.format("*** Trying to generate hash for Item with Pattern: %s:%s",
-                    hostname, ciname));
-            String hash = "";
-            try {
-                hash = hashString(String.format("%s:%s", hostname, ciname), "SHA-1");
-            } catch (Exception e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
-            }
-            logger.debug("*** Generated Hash: " + hash);
-            ciid = hash;
-
-            //event.setParametr(itemname);
-        }
-        // if Item has no CI pattern
-        else {
-            logger.debug("*** Use parent host as CI for item: " + itemname);
-            ciid = hostid;
-
-        }
-
-        // id, name, type, parentid
-        String[] hostreturn = new String[]{"", "", "", ""};
-        hostreturn[0] = ciid;
-        hostreturn[1] = newitemname;
-        hostreturn[2] = devicetype;
-        hostreturn[3] = parentid;
-        //hostreturn[1] = hostnameend;
-
-        logger.debug("New Zabbix CI ID: " + hostreturn[0]);
-        logger.debug("New Zabbix CI Name: " + hostreturn[1]);
-        logger.debug("New Zabbix DeviceType: " + hostreturn[2]);
-        logger.debug("New Zabbix ParentID: " + hostreturn[3]);
-
-        return hostreturn;
-    }
 
 	private String[] getElementsFromWebItem(String key) {
 
