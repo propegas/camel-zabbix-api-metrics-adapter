@@ -207,14 +207,14 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         } catch (NullPointerException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            logger.error(String.format("Error while get Devices from API: %s ", e));
+            logger.error(String.format("NullPointerException while get Metrics from API: %s ", e));
             genErrorMessage(e.getMessage() + " " + e.toString());
             //httpClient.close();
             return 0;
         } catch (Error e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            logger.error(String.format("Error while get Devices from API: %s ", e));
+            logger.error(String.format("Error while get Metrics from API: %s ", e));
             genErrorMessage(e.getMessage() + " " + e.toString());
             //httpClient.close();
             if (zabbixApi != null) {
@@ -224,7 +224,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         } catch (Throwable e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            logger.error(String.format("Throwable while get Devices from API: %s ", e));
+            logger.error(String.format("Throwable while get Metrics from API: %s ", e));
             genErrorMessage(e.getMessage() + " " + e.toString());
             //httpClient.close();
             if (zabbixApi != null) {
@@ -397,6 +397,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             answer.put("webstep", webelements[1]);
             answer.put("externalid", "Zabbix:" + externalid[0]);
 			answer.put("units", units);
+            answer.put("source", ZabbixAPIConsumer.endpoint.getConfiguration().getSource());
             answer.put("lastpoll", timestamp);
 
 
@@ -495,6 +496,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             answer.put("externalid", "Zabbix:" + externalid[0]);
             answer.put("units", units);
             answer.put("valuemapid", valuemapid);
+            answer.put("source", ZabbixAPIConsumer.endpoint.getConfiguration().getSource());
             answer.put("lastpoll", timestamp);
 
 
