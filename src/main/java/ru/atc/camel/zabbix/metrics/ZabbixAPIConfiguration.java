@@ -29,8 +29,10 @@ public class ZabbixAPIConfiguration {
 	private String itemCiTypePattern;
 	
 	private String test;
-	
-	private int lastid = 0;
+
+    private boolean usejms;
+
+    private int lastid = 0;
 	
     private int delay = 720;
   
@@ -145,4 +147,12 @@ public class ZabbixAPIConfiguration {
 	public void setItemCiTypePattern(String itemCiTypePattern) {
 		this.itemCiTypePattern = itemCiTypePattern;
 	}
+
+    public boolean isUsejms() {
+        return usejms;
+    }
+
+    public void setUsejms(boolean usejms) {
+        this.usejms = usejms;
+    }
 }

@@ -169,9 +169,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             if (itemsList != null)
                 listFinal.addAll(webitemsList);
 
-            logger.info("Create Exchange containers...");
+            logger.info("Create Exchange containers for metrics...");
             for (Map<String, Object> aListFinal : listFinal) {
-                logger.info("Create Exchange container");
+                logger.debug("Create Exchange container for entry: " + aListFinal.toString());
                 Exchange exchange = getEndpoint().createExchange();
 
                 exchange.getIn().setBody(aListFinal);
@@ -191,23 +191,32 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
             logger.info("Sended Metrics: " + listFinal.size());
 
-            logger.info("Try get metrics mappings...");
+            logger.info("Try get Metrics Value Mappings...");
             String fullSql = getValueMappings(zabbixApi);
-            Exchange exchange = getEndpoint().createExchange();
-            exchange.getIn().setHeader("queueName", "Mappings");
-            exchange.getIn().setBody(fullSql);
+            if (fullSql != null) {
+                logger.info("Create Exchange container for Metrics Value Mappings...");
+                Exchange exchange = getEndpoint().createExchange();
+                exchange.getIn().setHeader("queueName", "Mappings");
+                exchange.getIn().setBody(fullSql);
 
-            try {
-                getProcessor().process(exchange);
-            } catch (Exception e) {
-                // TODO Auto-generated catch block
-                e.printStackTrace();
+                logger.info("Sended All Metrics Value Mappings.");
+
+                try {
+                    getProcessor().process(exchange);
+                } catch (Exception e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
             }
 
         } catch (NullPointerException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
             logger.error(String.format("NullPointerException while get Metrics from API: %s ", e));
+
+            // close all DB connections
+            //logger.info("Close all DB connections");
+            //Main.ds.close();
             genErrorMessage(e.getMessage() + " " + e.toString());
             //httpClient.close();
             return 0;
@@ -215,6 +224,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             // TODO Auto-generated catch block
             e.printStackTrace();
             logger.error(String.format("Error while get Metrics from API: %s ", e));
+
+            // close all DB connections
+            //logger.info("Close all DB connections");
+            //Main.ds.close();
             genErrorMessage(e.getMessage() + " " + e.toString());
             //httpClient.close();
             if (zabbixApi != null) {
@@ -225,6 +238,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             // TODO Auto-generated catch block
             e.printStackTrace();
             logger.error(String.format("Throwable while get Metrics from API: %s ", e));
+
+            // close all DB connections
+            //logger.info("Close all DB connections");
+            //Main.ds.close();
             genErrorMessage(e.getMessage() + " " + e.toString());
             //httpClient.close();
             if (zabbixApi != null) {
@@ -239,6 +256,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             if (zabbixApi != null) {
                 zabbixApi.destory();
             }
+
+            // close all DB connections
+            //logger.info("Close all DB connections");
+            //Main.ds.close();
             // dataSource.close();
             // return 0;
         }
@@ -275,7 +296,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         } catch (Exception e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            throw new RuntimeException("Failed get JSON response result for all Mappings.");
+            logger.error("Failed get JSON response result for all Mappings.");
+            //throw new RuntimeException("Failed get JSON response result for all Mappings.");
+            return null;
         }
 
         String fullSql;
@@ -307,7 +330,8 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         fullSql = String.format("%s %s",
                 sqlPrefixPart,
                 sql.substring(0, sql.length() - 1));
-        logger.debug("fullSql: " + fullSql);
+
+        logger.debug("**** Value Mapping Insert fullSql: " + fullSql);
 
 
         return fullSql;
@@ -395,8 +419,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 			answer.put("key", key);
             answer.put("webscenario", webelements[0]);
             answer.put("webstep", webelements[1]);
-            answer.put("externalid", "Zabbix:" + externalid[0]);
-			answer.put("units", units);
+            answer.put("externalid", String.format("%s:%s",
+                    ZabbixAPIConsumer.endpoint.getConfiguration().getSource(),
+                    externalid[0]));
+            answer.put("units", units);
             answer.put("source", ZabbixAPIConsumer.endpoint.getConfiguration().getSource());
             answer.put("lastpoll", timestamp);
 
@@ -493,7 +519,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             answer.put("key", key);
             answer.put("webscenario", null);
             answer.put("webstep", null);
-            answer.put("externalid", "Zabbix:" + externalid[0]);
+            answer.put("externalid", String.format("%s:%s",
+                    ZabbixAPIConsumer.endpoint.getConfiguration().getSource(),
+                    externalid[0]));
             answer.put("units", units);
             answer.put("valuemapid", valuemapid);
             answer.put("source", ZabbixAPIConsumer.endpoint.getConfiguration().getSource());
@@ -616,33 +644,37 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
 	private void genErrorMessage(String message) {
 		// TODO Auto-generated method stub
-		long timestamp = System.currentTimeMillis();
-		timestamp = timestamp / 1000;
-		String textError = "Возникла ошибка при работе адаптера: ";
-		Event genevent = new Event();
-		genevent.setMessage(textError + message);
-		genevent.setEventCategory("ADAPTER");
-		genevent.setSeverity(PersistentEventSeverity.CRITICAL.name());
-		genevent.setTimestamp(timestamp);
-		genevent.setEventsource(String.format("%s", endpoint.getConfiguration().getSource()));
-		genevent.setStatus("OPEN");
-		genevent.setHost("adapter");
+        if (endpoint.getConfiguration().isUsejms()) {
+            long timestamp = System.currentTimeMillis();
+            timestamp = timestamp / 1000;
+            String textError = "Возникла ошибка при работе адаптера: ";
+            Event genevent = new Event();
+            genevent.setMessage(textError + message);
+            genevent.setEventCategory("ADAPTER");
+            genevent.setSeverity(PersistentEventSeverity.CRITICAL.name());
+            genevent.setTimestamp(timestamp);
+            genevent.setEventsource(String.format("%s", endpoint.getConfiguration().getSource()));
+            genevent.setStatus("OPEN");
+            genevent.setHost("adapter");
 
-		logger.info(" **** Create Exchange for Error Message container");
-		Exchange exchange = getEndpoint().createExchange();
-		exchange.getIn().setBody(genevent, Device.class);
+            logger.info(" **** Create Exchange for Error Message container");
+            Exchange exchange = getEndpoint().createExchange();
+            exchange.getIn().setBody(genevent, Device.class);
 
-		exchange.getIn().setHeader("EventIdAndStatus", "Error_" + timestamp);
-		exchange.getIn().setHeader("Timestamp", timestamp);
-		exchange.getIn().setHeader("queueName", "Events");
-		exchange.getIn().setHeader("Type", "Error");
+            exchange.getIn().setHeader("EventIdAndStatus", "Error_" + timestamp);
+            exchange.getIn().setHeader("Timestamp", timestamp);
+            exchange.getIn().setHeader("queueName", "Events");
+            exchange.getIn().setHeader("Type", "Error");
 
-		try {
-			getProcessor().process(exchange);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+            try {
+                getProcessor().process(exchange);
+            } catch (Exception e) {
+                // TODO Auto-generated catch block
+                e.printStackTrace();
+            }
+        } else {
+            logger.info(" **** No usejms=true property found. Error has not been sended.");
+        }
 
 	}
 

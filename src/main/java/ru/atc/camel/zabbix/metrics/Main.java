@@ -11,7 +11,7 @@ import org.apache.camel.component.properties.PropertiesComponent;
 import org.apache.camel.component.sql.SqlComponent;
 import org.apache.camel.model.dataformat.JsonDataFormat;
 import org.apache.camel.model.dataformat.JsonLibrary;
-import org.apache.commons.dbcp.BasicDataSource;
+import org.apache.commons.dbcp2.BasicDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.at_consulting.itsm.event.Event;
@@ -42,10 +42,11 @@ public class Main {
 	public static String sql_user = null;
 	public static String sql_password = null;
 	public static String usejms = null;
-	private static Logger logger = LoggerFactory.getLogger(Main.class);
+    public static BasicDataSource ds;
+    private static Logger logger = LoggerFactory.getLogger(Main.class);
 
 	public static void main(String[] args) throws Exception {
-		
+
 		logger.info("Starting Custom Apache Camel component example");
 		logger.info("Press CTRL+C to terminate the JVM");
 			
@@ -144,16 +145,19 @@ public class Main {
 				//getContext().reg
 				
 				SqlComponent sql = new SqlComponent();
-				BasicDataSource ds = setupDataSource();
-				sql.setDataSource(ds);
+                ds = setupDataSource();
+                sql.setDataSource(ds);
 				getContext().addComponent("sql", sql);
 
 				JdbcComponent jdbc = new JdbcComponent();
 				jdbc.setDataSource(ds);
 				getContext().addComponent("jdbc", jdbc);
-				
-							
-				// Heartbeats
+
+                // If access to the original message is not needed,
+                // then its recommended to turn this option off as it may improve performance.
+                getContext().setAllowUseOriginalMessage(false);
+
+                // Heartbeats
 				if (usejms.equals("true")){
 					from("timer://foo?period={{heartbeatsdelay}}")
 					//.choice()
@@ -180,7 +184,8 @@ public class Main {
 						+ "itemCiParentPattern={{zabbix_item_ci_parent_pattern}}&"
 						+ "itemCiTypePattern={{zabbix_item_ci_type_pattern}}&"
 		    			+ "source={{source}}&"
-		    			+ "zabbix_item_description_pattern={{zabbix_item_description_pattern}}&"
+                        + "usejms={{usejms}}&"
+                        + "zabbix_item_description_pattern={{zabbix_item_description_pattern}}&"
 		    			+ "zabbixip={{zabbixip}}")
 
 		    		.choice()
