@@ -38,6 +38,7 @@ public class Main {
 	public static String activemq_port = null;
 	public static String activemq_ip = null;
 	public static String sql_ip = null;
+	public static String sql_port = null;
 	public static String sql_database = null;
 	public static String sql_user = null;
 	public static String sql_password = null;
@@ -74,11 +75,13 @@ public class Main {
 
 			// get the property value and print it out
 			System.out.println(prop.getProperty("sql_ip"));
+			System.out.println(prop.getProperty("sql_port"));
 			System.out.println(prop.getProperty("sql_database"));
 			System.out.println(prop.getProperty("sql_user"));
 			System.out.println(prop.getProperty("sql_password"));
 			
 			sql_ip = prop.getProperty("sql_ip");
+			sql_port = prop.getProperty("sql_port");
 			sql_database = prop.getProperty("sql_database");
 			sql_user = prop.getProperty("sql_user");
 			sql_password = prop.getProperty("sql_password");
@@ -104,6 +107,8 @@ public class Main {
 			activemq_ip = "172.20.19.195";
 		if (sql_ip == null || Objects.equals(sql_ip, ""))
 			sql_ip = "192.168.157.73";
+		if (sql_port == null || Objects.equals(sql_port, ""))
+			sql_port = "5432";
 		if (sql_database == null || Objects.equals(sql_database, ""))
 			sql_database = "monitoring";
 		if (sql_user == null || Objects.equals(sql_user, ""))
@@ -113,6 +118,8 @@ public class Main {
 		
 		logger.info("activemq_ip: " + activemq_ip);
 		logger.info("activemq_port: " + activemq_port);
+		logger.info("sql_ip: " + sql_ip);
+		logger.info("sql_port: " + sql_port);
 		
 		org.apache.camel.main.Main main = new org.apache.camel.main.Main();
 		main.enableHangupSupport();
@@ -252,7 +259,7 @@ public class Main {
 	private static BasicDataSource setupDataSource() {
 		
 		String url = String.format("jdbc:postgresql://%s:%s/%s",
-				sql_ip, "5432",	sql_database);
+				sql_ip, sql_port, sql_database);
 		
         BasicDataSource ds = new BasicDataSource();
         ds.setDriverClassName("org.postgresql.Driver");

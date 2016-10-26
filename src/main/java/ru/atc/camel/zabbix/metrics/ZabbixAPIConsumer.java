@@ -8,6 +8,11 @@ import io.github.hengyunabc.zabbix.api.RequestBuilder;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.impl.ScheduledPollConsumer;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
+import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.at_consulting.itsm.device.Device;
@@ -148,8 +153,17 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             String zabbixapiurl = endpoint.getConfiguration().getZabbixapiurl();
             String username = endpoint.getConfiguration().getUsername();
             String password = endpoint.getConfiguration().getPassword();
+
+            HttpClient httpClient2 = HttpClients.custom()
+                    .setConnectionTimeToLive(120, TimeUnit.SECONDS)
+                    .setMaxConnTotal(40).setMaxConnPerRoute(40)
+                    .setDefaultRequestConfig(RequestConfig.custom()
+                            .setSocketTimeout(120000).setConnectTimeout(10000).build())
+                    .setRetryHandler(new DefaultHttpRequestRetryHandler(5, true))
+                    .build();
+
             // String url = "http://192.168.90.102/zabbix/api_jsonrpc.php";
-            zabbixApi = new DefaultZabbixApi(zabbixapiurl);
+            zabbixApi = new DefaultZabbixApi(zabbixapiurl, (CloseableHttpClient) httpClient2);
             zabbixApi.init();
 
             boolean login = zabbixApi.login(username, password);
