@@ -155,12 +155,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         try {
             getProcessor().process(exchange);
             if (exchange.getException() != null) {
-                logger.error("Ошибка при передаче сообщения в БД", exchange.getException());
-                genErrorMessage("Ошибка при передаче сообщения в БД", exchange.getException());
+                genErrorMessage("Ошибка при передаче сообщения в базу данных ", exchange.getException());
             }
         } catch (Exception e) {
-            logger.error("Ошибка при передаче сообщения в БД", e);
-            genErrorMessage("Ошибка при передаче сообщения в БД", e);
+            genErrorMessage("Ошибка при передаче сообщения в базу данных ", e);
         }
     }
 
@@ -176,12 +174,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             try {
                 getProcessor().process(exchange);
                 if (exchange.getException() != null) {
-                    logger.error("Ошибка при передаче сообщения в БД", exchange.getException());
-                    genErrorMessage("Ошибка при передаче сообщения в БД", exchange.getException());
+                    genErrorMessage("Ошибка при передаче сообщения в базу данных", exchange.getException());
                 }
             } catch (Exception e) {
-                logger.error("Ошибка при передаче сообщения в БД", e);
-                genErrorMessage("Ошибка при передаче сообщения в БД", e);
+                genErrorMessage("Ошибка при передаче сообщения в базу данных", e);
             }
 
         }

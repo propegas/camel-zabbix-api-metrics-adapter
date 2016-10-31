@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC "-//Puppy Crawl//DTD Suppressions 1.1//EN"
+        "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
+<suppressions>
+    <suppress checks="AnonInnerLength" files="Main.java"/>
+    <suppress checks=".*" files="ZabbixAPIConsumerTest.java"/>
+    <suppress checks=".*" files="CamelSDCEadapter.java"/>
+    <suppress checks=".*" files="CamelSDCEdevice_adapter.java"/>
+    <suppress checks=".*" files="SDCE_WS_manage.java"/>
+    <suppress checks=".*" files="com[\\/]hp[\\/]ov[\\/]nms[\\/]"/>
+    <suppress checks=".*" files="com[\\/]apc[\\/]stdws[\\/]"/>
+</suppressions>
