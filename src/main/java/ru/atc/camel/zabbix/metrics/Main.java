@@ -178,6 +178,10 @@ public final class Main {
                     .to("jdbc:BasicDataSource")
                     .log(LoggingLevel.DEBUG, logger, "**** Inserted Metrics mapping ${body[itemid]}")
 
+                    .when(header("queueName").isEqualTo("Refresh"))
+                    .to("{{api.metrics.refresh}}")
+                    .log(LoggingLevel.INFO, logger, "**** Send HTTP request to API for correlation context refresh ")
+
                     .otherwise()
                     .choice()
 
