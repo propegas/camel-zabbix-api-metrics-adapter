@@ -311,10 +311,16 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             hostreturn[2] = devicetype;
             hostreturn[3] = parentid;
              */
-            String[] externalid = checkItemForCi(name, hostid, hostname,
-                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiPattern(),
-                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiParentPattern(),
-                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiTypePattern());
+            String[] externalid;
+            try {
+                externalid = checkItemForCi(name, hostid, hostname,
+                        ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiPattern(),
+                        ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiParentPattern(),
+                        ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiTypePattern());
+            } catch (Exception e) {
+                genErrorMessage("Failed while checking Zabbix Item CI", e);
+                throw new RuntimeException("Failed while checking Zabbix Item CI");
+            }
 
             Map<String, Object> answer = new HashMap<>();
             answer.put("itemid", itemid);
@@ -352,6 +358,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
                     .paramEntry("output", new String[]{"hostid", "name", "itemid", "description", "key_", "value_type", "type", "lastclock", "units", "valuemapid"})
                     .paramEntry("monitored", true)
                     .paramEntry("selectHosts", new String[]{"host", "name"})
+                    .paramEntry("selectItemDiscovery", new String[]{"key_"})
 
                     .build();
 
@@ -385,6 +392,15 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             String hostid = item.getString("hostid");
             String name = item.getString("name");
             String key = item.getString("key_");
+            String prototypeKey = key;
+
+            try {
+                if (!item.getJSONObject("itemDiscovery").isEmpty())
+                    prototypeKey = item.getJSONObject("itemDiscovery").getString("key_");
+            } catch (Exception e) {
+                // заглушка
+            }
+
             String units = item.getString("units");
             Integer valuemapid = Integer.parseInt(item.getString("valuemapid"));
             Long timestamp = (long) Integer.parseInt(item.getString("lastclock"));
@@ -399,16 +415,23 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             hostreturn[2] = devicetype;
             hostreturn[3] = parentid;
              */
-            String[] externalid = checkItemForCi(name, hostid, hostname,
-                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiPattern(),
-                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiParentPattern(),
-                    ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiTypePattern());
+            String[] externalid;
+            try {
+                externalid = checkItemForCi(name, hostid, hostname,
+                        ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiPattern(),
+                        ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiParentPattern(),
+                        ZabbixAPIConsumer.endpoint.getConfiguration().getItemCiTypePattern());
+            } catch (Exception e) {
+                genErrorMessage("Failed while checking Zabbix Item CI", e);
+                throw new RuntimeException("Failed while checking Zabbix Item CI");
+            }
 
             Map<String, Object> answer = new HashMap<>();
             answer.put("itemid", itemid);
             answer.put("itemname", name);
             answer.put("type", valueType);
             answer.put("key", key);
+            answer.put("prototype_key", prototypeKey);
             answer.put("webscenario", null);
             answer.put("webstep", null);
             answer.put("externalid", String.format("%s:%s",
