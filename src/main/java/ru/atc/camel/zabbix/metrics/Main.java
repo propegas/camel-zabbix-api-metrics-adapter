@@ -170,6 +170,7 @@ public final class Main {
                     .choice()
 
                     .when(header("queueName").isEqualTo("Metrics"))
+                    .log(LoggingLevel.DEBUG, logger, "**** Insert {{sql.insertMetric}}")
                     .to("sql:{{sql.insertMetric}}")
                     .log(LoggingLevel.DEBUG, logger, "**** Inserted new metric ${body[itemid]}")
 

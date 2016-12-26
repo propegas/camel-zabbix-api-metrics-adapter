@@ -234,37 +234,39 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             return null;
         }
 
-        String fullSql;
+        String fullSql = "";
         String sql = "";
-        logger.info("Finded Zabbix Value Mappings count: " + mappings.size());
+        if (mappings != null) {
+            logger.info("Finded Zabbix Value Mappings count: " + mappings.size());
 
-        for (int i = 0; i < mappings.size(); i++) {
-            JSONObject mapping = mappings.getJSONObject(i);
-            JSONArray valueMappings = mapping.getJSONArray("mappings");
-            String name = mapping.getString("name");
-            int valuemapid = mapping.getIntValue("valuemapid");
-            for (int j = 0; j < valueMappings.size(); j++) {
-                JSONObject valueMapping = valueMappings.getJSONObject(j);
-                int mappingid = valueMapping.getIntValue("mappingid");
-                int value = valueMapping.getIntValue("value");
-                String newvalue = valueMapping.getString("newvalue");
-                sql = sql + String.format(" ('%d', '%s', '%d', '%d', '%s' ),",
-                        valuemapid,
-                        name,
-                        mappingid,
-                        value,
-                        newvalue
-                );
+            for (int i = 0; i < mappings.size(); i++) {
+                JSONObject mapping = mappings.getJSONObject(i);
+                JSONArray valueMappings = mapping.getJSONArray("mappings");
+                String name = mapping.getString("name");
+                int valuemapid = mapping.getIntValue("valuemapid");
+                for (int j = 0; j < valueMappings.size(); j++) {
+                    JSONObject valueMapping = valueMappings.getJSONObject(j);
+                    int mappingid = valueMapping.getIntValue("mappingid");
+                    int value = valueMapping.getIntValue("value");
+                    String newvalue = valueMapping.getString("newvalue");
+                    sql = sql + String.format(" ('%d', '%s', '%d', '%d', '%s' ),",
+                            valuemapid,
+                            name,
+                            mappingid,
+                            value,
+                            newvalue
+                    );
+                }
             }
+
+            String sqlPrefixPart = "delete from metrics_valuemap; " +
+                    "insert into metrics_valuemap (valuemapid, valuemapname,mappingid , value, newvalue ) values ";
+            fullSql = String.format("%s %s",
+                    sqlPrefixPart,
+                    sql.substring(0, sql.length() - 1));
+
+            logger.debug("**** Value Mapping Insert fullSql: " + fullSql);
         }
-
-        String sqlPrefixPart = "delete from metrics_valuemap; " +
-                "insert into metrics_valuemap (valuemapid, valuemapname,mappingid , value, newvalue ) values ";
-        fullSql = String.format("%s %s",
-                sqlPrefixPart,
-                sql.substring(0, sql.length() - 1));
-
-        logger.debug("**** Value Mapping Insert fullSql: " + fullSql);
 
         return fullSql;
     }
@@ -348,6 +350,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             answer.put("itemname", name);
             answer.put("type", valueType);
             answer.put("key", key);
+            answer.put("prototype_key", key);
             answer.put("webscenario", webelements[0]);
             answer.put("webstep", webelements[1]);
             answer.put("externalid", String.format("%s:%s",
@@ -356,6 +359,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             answer.put("units", units);
             answer.put("source", ZabbixAPIConsumer.endpoint.getConfiguration().getSource());
             answer.put("lastpoll", timestamp);
+            answer.put("valuemapid", null);
 
             deviceList.add(answer);
 
