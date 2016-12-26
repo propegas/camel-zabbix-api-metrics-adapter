@@ -2,9 +2,6 @@ package ru.atc.camel.zabbix.metrics;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import io.github.hengyunabc.zabbix.api.DefaultZabbixApi;
-import io.github.hengyunabc.zabbix.api.Request;
-import io.github.hengyunabc.zabbix.api.RequestBuilder;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.impl.ScheduledPollConsumer;
@@ -15,6 +12,9 @@ import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.atc.monitoring.zabbix.api.DefaultZabbixApi;
+import ru.atc.monitoring.zabbix.api.Request;
+import ru.atc.monitoring.zabbix.api.RequestBuilder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
