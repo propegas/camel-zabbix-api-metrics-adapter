@@ -2,6 +2,9 @@ package ru.atc.camel.zabbix.metrics;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import ru.atc.monitoring.zabbix.api.DefaultZabbixApi;
+import ru.atc.monitoring.zabbix.api.Request;
+import ru.atc.monitoring.zabbix.api.RequestBuilder;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.impl.ScheduledPollConsumer;
@@ -12,9 +15,6 @@ import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.atc.monitoring.zabbix.api.DefaultZabbixApi;
-import ru.atc.monitoring.zabbix.api.Request;
-import ru.atc.monitoring.zabbix.api.RequestBuilder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -41,6 +41,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
     private static final Logger loggerErrors = LoggerFactory.getLogger("errorsLogger");
 
     private static ZabbixAPIEndpoint endpoint;
+    private DefaultZabbixApi zabbixApi;
 
     public ZabbixAPIConsumer(ZabbixAPIEndpoint endpoint, Processor processor) {
         super(endpoint, processor);
@@ -81,21 +82,25 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         List<Map<String, Object>> listFinal = new ArrayList<>();
 
         String eventsuri = endpoint.getConfiguration().getZabbixapiurl();
-        logger.info("Try to get Zabbix Metrics from " + eventsuri);
+        logger.info("Try to get Zabbix Metrics from {}", eventsuri);
 
-        HttpClient httpClient2 = HttpClients.custom()
-                .setConnectionTimeToLive(CONNECTION_TIME_TO_LIVE, TimeUnit.SECONDS)
-                .setMaxConnTotal(MAX_CONN_TOTAL).setMaxConnPerRoute(MAX_CONN_PER_ROUTE)
-                .setDefaultRequestConfig(RequestConfig.custom()
-                        .setSocketTimeout(SOCKET_TIMEOUT).setConnectTimeout(CONNECT_TIMEOUT).build())
-                .setRetryHandler(new DefaultHttpRequestRetryHandler(5, true))
-                .build();
-
-        DefaultZabbixApi zabbixApi = null;
+        zabbixApi = null;
         try {
             String zabbixapiurl = endpoint.getConfiguration().getZabbixapiurl();
             String username = endpoint.getConfiguration().getUsername();
             String password = endpoint.getConfiguration().getPassword();
+           // String adapterName = endpoint.getConfiguration().getAdaptername();
+
+            //zabbixApi = getZabbixApi(this, zabbixapiurl, username, password, adapterName);
+
+            HttpClient httpClient2 = HttpClients.custom()
+                    .setConnectionTimeToLive(CONNECTION_TIME_TO_LIVE, TimeUnit.SECONDS)
+                    .setMaxConnTotal(MAX_CONN_TOTAL).setMaxConnPerRoute(MAX_CONN_PER_ROUTE)
+                    .setDefaultRequestConfig(RequestConfig.custom()
+                            .setSocketTimeout(SOCKET_TIMEOUT).setConnectTimeout(CONNECT_TIMEOUT).build())
+                    .setRetryHandler(new DefaultHttpRequestRetryHandler(5, true))
+                    .setConnectionManagerShared(true)
+                    .build();
 
             zabbixApi = new DefaultZabbixApi(zabbixapiurl, (CloseableHttpClient) httpClient2);
             zabbixApi.init();
@@ -120,7 +125,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
             processExchangeItems(listFinal);
 
-            logger.info("Sended Metrics: " + listFinal.size());
+            logger.info("Sended Metrics: {}", listFinal.size());
 
             logger.info("Try get Metrics Value Mappings...");
             String fullSql = getValueMappings(zabbixApi);
@@ -132,11 +137,13 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             genErrorMessage("Error while get Metrics from API", e);
             return 0;
         } finally {
-            logger.debug(String.format(" **** Close zabbixApi Client: %s",
-                    zabbixApi != null ? zabbixApi.toString() : null));
+            if (logger.isDebugEnabled()) {
+                logger.debug(" **** Close zabbixApi Client: {}",
+                        zabbixApi != null ? zabbixApi.toString() : null);
+            }
 
             if (zabbixApi != null) {
-                zabbixApi.destory();
+                zabbixApi.destroy();
             }
 
             // send HTTP-request to correlation API for refresh context
@@ -186,9 +193,13 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
     private void processExchangeItems(List<Map<String, Object>> listFinal) {
         logger.info("Create Exchange containers for metrics...");
         for (Map<String, Object> aListFinal : listFinal) {
-            logger.debug("Create Exchange container for entry: " + aListFinal.toString());
+            if (logger.isDebugEnabled()) {
+                logger.debug("Create Exchange container for entry: {}", aListFinal.toString());
+            }
             Exchange exchange = getEndpoint().createExchange();
 
+            if (aListFinal.get("enabled") == null)
+                aListFinal.put("enabled", true);
             exchange.getIn().setBody(aListFinal);
             exchange.getIn().setHeader("queueName", "Metrics");
 
@@ -223,10 +234,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         JSONArray mappings;
         try {
             getResponse = zabbixApi.call(getRequest);
-            logger.debug("****** Finded Zabbix getRequest: " + getRequest);
+            logger.debug("****** Finded Zabbix getRequest: {}", getRequest);
 
             mappings = getResponse.getJSONArray("result");
-            logger.debug("****** Finded Zabbix getResponse: " + getResponse);
+            logger.debug("****** Finded Zabbix getResponse: {}", getResponse);
 
         } catch (Exception e) {
             genErrorMessage("Failed create JSON response for get all Mappings.", e);
@@ -237,7 +248,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         String fullSql = "";
         String sql = "";
         if (mappings != null) {
-            logger.info("Finded Zabbix Value Mappings count: " + mappings.size());
+            logger.info("Finded Zabbix Value Mappings count: {}", mappings.size());
 
             for (int i = 0; i < mappings.size(); i++) {
                 JSONObject mapping = mappings.getJSONObject(i);
@@ -249,7 +260,8 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
                     int mappingid = valueMapping.getIntValue("mappingid");
                     int value = valueMapping.getIntValue("value");
                     String newvalue = valueMapping.getString("newvalue");
-                    sql = sql + String.format(" ('%d', '%s', '%d', '%d', '%s' ),",
+                    sql = String.format("%s ('%d', '%s', '%d', '%d', '%s' ),",
+                            sql,
                             valuemapid,
                             name,
                             mappingid,
@@ -265,7 +277,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
                     sqlPrefixPart,
                     sql.substring(0, sql.length() - 1));
 
-            logger.debug("**** Value Mapping Insert fullSql: " + fullSql);
+            logger.debug("**** Value Mapping Insert fullSql: {}", fullSql);
         }
 
         return fullSql;
@@ -295,10 +307,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         JSONArray items;
         try {
             getResponse = zabbixApi.call(getRequest);
-            logger.debug("****** Finded Zabbix getRequest: " + getRequest);
+            logger.debug("****** Finded Zabbix getRequest: {}", getRequest);
 
             items = getResponse.getJSONArray("result");
-            logger.debug("****** Finded Zabbix getResponse: " + getResponse);
+            logger.debug("****** Finded Zabbix getResponse: {}", getResponse);
 
         } catch (Exception e) {
             genErrorMessage("Failed create JSON response for get all Web Items.", e);
@@ -308,7 +320,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
         List<Map<String, Object>> listFinal = new ArrayList<>();
 
-        logger.info("Finded Zabbix Web Items count: " + items.size());
+        logger.info("Finded Zabbix Web Items count: {}", items.size());
 
         for (int i = 0; i < items.size(); i++) {
 
@@ -394,10 +406,10 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         JSONArray items;
         try {
             getResponse = zabbixApi.call(getRequest);
-            logger.debug("****** Finded Zabbix getRequest: " + getRequest);
+            logger.debug("****** Finded Zabbix getRequest: {}", getRequest);
 
             items = getResponse.getJSONArray("result");
-            logger.debug("****** Finded Zabbix getResponse: " + getResponse);
+            logger.debug("****** Finded Zabbix getResponse: {}", getResponse);
 
         } catch (Exception e) {
             genErrorMessage("Failed create JSON response for get all CI Items.", e);
@@ -406,7 +418,14 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         List<Map<String, Object>> deviceList = new ArrayList<>();
         List<Map<String, Object>> listFinal = new ArrayList<>();
 
-        logger.info("Finded Zabbix General Items count: " + items.size());
+        logger.info("Finded Zabbix General Items count: {}", items.size());
+
+        Pattern itemDescriptionSearchItemPattern = Pattern.compile(".*" + ZabbixAPIConsumer.endpoint.getConfiguration()
+                        .getZabbixItemDescriptionCheckItemPattern() + ".*",
+                Pattern.MULTILINE | Pattern.DOTALL);
+        Pattern itemDescriptionDefaultPattern = Pattern.compile(".*" + ZabbixAPIConsumer.endpoint.getConfiguration()
+                        .getZabbixItemDescriptionDefaultPattern() + ".*",
+                Pattern.MULTILINE | Pattern.DOTALL);
 
         for (int i = 0; i < items.size(); i++) {
 
@@ -417,6 +436,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             String hostid = item.getString("hostid");
             String name = item.getString("name");
             String key = item.getString("key_");
+            String description = item.getString("description");
             String prototypeKey = key;
 
             try {
@@ -451,6 +471,35 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
                 throw new RuntimeException("Failed while checking Zabbix Item CI");
             }
 
+            boolean enabled = true;
+            Matcher matcher = itemDescriptionSearchItemPattern.matcher(description);
+            //if(description.matches("(?m)(.*)\\[DEFAULT::([\\w]*)\\](.*)")) {
+            if (matcher.matches()) {
+                logger.debug("*** Found Zabbix Item with Search Item Pattern in Description: {}", description);
+                String checkItemKey = matcher.group(1).toUpperCase();
+                logger.debug("*** Check Item Key {} on host id {}", checkItemKey, hostid);
+                boolean found;
+                if (isItemKeyExistsOnHost(checkItemKey, hostid)) {
+                    logger.debug("*** Custom Item Key {} found on host id {}.", checkItemKey, hostid);
+                    found = true;
+                } else
+                    found = false;
+
+                Matcher matcher2 = itemDescriptionDefaultPattern.matcher(description);
+                if (matcher2.matches()) {
+                    logger.debug("*** Found Zabbix Item with Default State Item Pattern in Description: {}", description);
+                    String defaultValue = matcher2.group(1).toUpperCase();
+                    boolean enabledItem = Boolean.parseBoolean(defaultValue);
+                    logger.debug("*** Item Default metric state: {}", checkItemKey, defaultValue);
+                    if (found)
+                        enabled = enabledItem;
+                    else enabled = !enabledItem;
+                } else
+                    enabled = false;
+            }
+
+            logger.info("*** Set Item metric id {} state: {}", itemid, enabled);
+
             Map<String, Object> answer = new HashMap<>();
             answer.put("itemid", itemid);
             answer.put("itemname", name);
@@ -466,6 +515,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             answer.put("valuemapid", valuemapid);
             answer.put("source", ZabbixAPIConsumer.endpoint.getConfiguration().getSource());
             answer.put("lastpoll", timestamp);
+            answer.put("enabled", enabled);
 
             deviceList.add(answer);
 
@@ -475,6 +525,63 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
         return listFinal;
 
+    }
+
+    private boolean isItemKeyExistsOnHost(String checkItemKey, String hostid) {
+
+        JSONArray items = getItemsByKeyAndHostId(checkItemKey, hostid);
+        if (items.isEmpty())
+            return false;
+
+        for (int i = 0; i < items.size(); i++) {
+            try {
+                // if custom (not discovered) item exists and enabled
+                Object item = items.getJSONObject(i).get("itemDiscovery");
+                if (item instanceof JSONArray && ((JSONArray) item).isEmpty())
+                    return true;
+            } catch (Exception e) {
+                // заглушка
+            }
+        }
+
+        return false;
+    }
+
+    public JSONArray getItemsByKeyAndHostId(String checkItemKey, String hostid) {
+        Request getRequest;
+        JSONObject getResponse;
+        try {
+            JSONObject filter = new JSONObject();
+            filter.put("key_", new String[]{checkItemKey});
+
+            getRequest = RequestBuilder.newBuilder().method("item.get")
+                    .paramEntry("search", filter)
+                    .paramEntry("output", new String[]{"name", "itemid", "key_"})
+                    .paramEntry("monitored", true)
+                    .paramEntry("hostids", new String[]{hostid})
+                    .paramEntry("selectItemDiscovery", new String[]{"key_"})
+                    .build();
+
+        } catch (Exception ex) {
+            genErrorMessage("Failed create JSON request for get Items by Key on Host.", ex);
+            throw new RuntimeException("Failed create JSON request for get Items by Key on Host.", ex);
+        }
+        JSONArray items;
+        try {
+            getResponse = zabbixApi.call(getRequest);
+            logger.debug("****** Finded Zabbix getRequest: {}", getRequest);
+
+            items = getResponse.getJSONArray("result");
+            logger.debug("****** Finded Zabbix getResponse: {}", getResponse);
+
+        } catch (Exception e) {
+            genErrorMessage("Failed create JSON response for get Items by Key on Host.", e);
+            throw new RuntimeException("Failed get JSON response result for get Items by Key on Host.", e);
+        }
+
+        logger.info("Found Zabbix Items by Key count: {}", items.size());
+
+        return items;
     }
 
     private String[] getElementsFromWebItem(String key) {
@@ -491,14 +598,14 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         // web.test.in[WebScenario,,bps]
         if (matcher.matches()) {
 
-            logger.debug("*** Finded Zabbix Web Item key with Pattern: " + key);
+            logger.debug("*** Finded Zabbix Web Item key with Pattern: {}", key);
             // save as ne CI name
             keyparams = matcher.group(2);
 
             // get scenario and step from key params
             String[] params;
             params = keyparams.split(",");
-            logger.debug(String.format("*** Finded Zabbix Web Item key params (size): %d ", params.length));
+            logger.debug("*** Finded Zabbix Web Item key params (size): {} ", params.length);
 
             if (params.length > 1) {
                 webscenario = params[0];
@@ -507,7 +614,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
                 webscenario = params[0];
             }
 
-            logger.debug(String.format("*** Finded Zabbix Web Item key params: %s:%s ", webscenario, webstep));
+            logger.debug("*** Finded Zabbix Web Item key params: {}:{} ", webscenario, webstep);
 
         }
 
@@ -515,8 +622,8 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         webelements[0] = webscenario;
         webelements[1] = webstep;
 
-        logger.debug("New Zabbix Web Item Scenario: " + webelements[0]);
-        logger.debug("New Zabbix Web Item Step: " + webelements[1]);
+        logger.debug("New Zabbix Web Item Scenario: {}", webelements[0]);
+        logger.debug("New Zabbix Web Item Step: {}", webelements[1]);
 
         return webelements;
     }

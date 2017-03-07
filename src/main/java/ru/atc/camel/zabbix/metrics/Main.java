@@ -11,18 +11,21 @@ import org.apache.camel.component.properties.PropertiesComponent;
 import org.apache.camel.component.sql.SqlComponent;
 import org.apache.camel.model.dataformat.JsonDataFormat;
 import org.apache.camel.model.dataformat.JsonLibrary;
+import org.apache.camel.processor.RedeliveryPolicy;
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.atc.adapters.type.Event;
 
 import javax.jms.ConnectionFactory;
+import javax.jms.JMSException;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
 
 import static ru.atc.adapters.message.CamelMessageManager.genHeartbeatMessage;
+import static ru.atc.camel.zabbix.metrics.ZabbixGeneral.processZabbixAction;
 
 public final class Main {
 
@@ -36,10 +39,17 @@ public final class Main {
     private static String sqlUser;
     private static String sqlPassword;
     private static String usejms;
+    private static Processor processor;
     private static String adaptername;
+    private static String useZabbixActions;
+    private static Properties prop;
 
     private Main() {
 
+    }
+
+    public static Properties getProp() {
+        return prop;
     }
 
     public static void main(String[] args) throws Exception {
@@ -48,12 +58,11 @@ public final class Main {
         logger.info("Press CTRL+C to terminate the JVM");
 
         // get Properties from file
-        Properties prop = new Properties();
-        InputStream input = null;
+        prop = new Properties();
 
-        try {
-
-            input = new FileInputStream("zabbixapi.properties");
+        try (
+                InputStream input = new FileInputStream("zabbixapi.properties")
+        ) {
 
             // load a properties file
             prop.load(input);
@@ -66,47 +75,35 @@ public final class Main {
             sqlUser = prop.getProperty("sql_user");
             sqlPassword = prop.getProperty("sql_password");
             usejms = prop.getProperty("usejms");
+            useZabbixActions = prop.getProperty("use_zabbix_actions");
             activemqIp = prop.getProperty("activemq.ip");
             activemqPort = prop.getProperty("activemq.port");
             adaptername = prop.getProperty("adaptername");
 
         } catch (IOException ex) {
-            ex.printStackTrace();
-        } finally {
-            if (input != null) {
-                try {
-                    input.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+            loggerError.error("Ошибка открытия фйла с параметрами.", ex);
         }
-
-        logger.info("activemqIp: " + activemqIp);
-        logger.info("activemqPort: " + activemqPort);
-        logger.info("sqlIp: " + sqlIp);
-        logger.info("sqlPort: " + sqlPort);
 
         org.apache.camel.main.Main main = new org.apache.camel.main.Main();
         main.addRouteBuilder(new IntegrationRoute());
         main.run();
     }
 
-    private static BasicDataSource setupDataSource() {
-
-        String url = String.format("jdbc:postgresql://%s:%s/%s",
-                sqlIp, sqlPort, sqlDatabase);
-
-        BasicDataSource ds = new BasicDataSource();
-        ds.setDriverClassName("org.postgresql.Driver");
-        ds.setUsername(sqlUser);
-        ds.setPassword(sqlPassword);
-        ds.setUrl(url);
-
-        return ds;
-    }
-
     private static class IntegrationRoute extends RouteBuilder {
+
+        private static BasicDataSource setupDataSource() {
+
+            String url = String.format("jdbc:postgresql://%s:%s/%s",
+                    sqlIp, sqlPort, sqlDatabase);
+
+            BasicDataSource ds = new BasicDataSource();
+            ds.setDriverClassName("org.postgresql.Driver");
+            ds.setUsername(sqlUser);
+            ds.setPassword(sqlPassword);
+            ds.setUrl(url);
+
+            return ds;
+        }
 
         @Override
         public void configure() throws Exception {
@@ -117,12 +114,19 @@ public final class Main {
             myJson.setJsonView(Event.class);
             //myJson.setPrettyPrint(true);
 
+            JsonDataFormat zabbixAction = new JsonDataFormat();
+            zabbixAction.setPrettyPrint(true);
+            zabbixAction.setLibrary(JsonLibrary.Jackson);
+            zabbixAction.setJsonView(ZabbixAction.class);
+            zabbixAction.setPrettyPrint(true);
+
             PropertiesComponent properties = new PropertiesComponent();
             properties.setLocation("classpath:zabbixapi.properties");
             getContext().addComponent("properties", properties);
 
             ConnectionFactory connectionFactory = new ActiveMQConnectionFactory("tcp://" + activemqIp + ":" + activemqPort);
-            getContext().addComponent("activemq", JmsComponent.jmsComponentAutoAcknowledge(connectionFactory));
+            //getContext().addComponent("activemq", JmsComponent.jmsComponentAutoAcknowledge(connectionFactory));
+            getContext().addComponent("activemq", JmsComponent.jmsComponentClientAcknowledge(connectionFactory));
 
             SqlComponent sql = new SqlComponent();
             BasicDataSource ds = setupDataSource();
@@ -133,14 +137,27 @@ public final class Main {
             jdbc.setDataSource(ds);
             getContext().addComponent("jdbc", jdbc);
 
+            /*JndiContext jndiContext = new JndiContext();
+            jndiContext.bind("myBean1", new ZabbixGeneral());
+            //getContext().add
+            getContext().addComponent("jdbc", jdbc);*/
+
             // If access to the original message is not needed,
             // then its recommended to turn this option off as it may improve performance.
             getContext().setAllowUseOriginalMessage(false);
+
+            RedeliveryPolicy redeliveryPolicy = new RedeliveryPolicy();
+            //redeliveryPolicy.
+
+            onException(ZabbixActionException.class, JMSException.class)
+                    //.redeliveryPolicy(redeliveryPolicy)
+                    .maximumRedeliveries(2).delayPattern("1:5000;2:15000");
 
             // Heartbeats
             if ("true".equals(usejms)) {
                 from("timer://foo?period={{heartbeatsdelay}}")
                         .process(new Processor() {
+                            @Override
                             public void process(Exchange exchange) throws Exception {
                                 genHeartbeatMessage(exchange, adaptername);
                             }
@@ -148,6 +165,33 @@ public final class Main {
                         .marshal(myJson)
                         .to("activemq:{{heartbeatsqueue}}")
                         .log("*** Heartbeat: ${id}");
+            }
+
+            // processing zabbix actions from correlation
+            if ("true".equals(useZabbixActions)) {
+                processor = new Processor() {
+                    @Override
+                    public void process(Exchange exchange) throws Exception {
+                        processZabbixAction(exchange);
+                    }
+                };
+                from("activemq:{{actionsqueue}}")
+                        //.unmarshal(zabbixAction)
+                        //.transacted()
+                        .bean(ZabbixGeneral.class, "processZabbixAction")
+
+                        .choice()
+                        //.when(constant(usejms).isEqualTo("true"))
+                        .when(header("Type").isEqualTo("Error"))
+                        .marshal(myJson)
+                        .to("activemq:{{errorsqueue}}")
+                        .log(LoggingLevel.INFO, logger, "Error: ${id} ${header.DeviceId}")
+                        .log(LoggingLevel.ERROR, logger, "*** NEW ERROR BODY: ${in.body}")
+
+                        .otherwise()
+                        //.process(processor)
+                        .log(LoggingLevel.INFO, logger, "*** New Zabbix Action: ${body}")
+                        .endChoice();
             }
 
             // get metrics and ci
@@ -164,7 +208,10 @@ public final class Main {
                     .append("itemCiTypePattern={{zabbix_item_ci_type_pattern}}&")
                     .append("source={{source}}&")
                     .append("usejms={{usejms}}&")
-                    .append("zabbixItemDescriptionPattern={{zabbixItemDescriptionPattern}}")
+                    .append("zabbixItemDescriptionPattern={{zabbixItemDescriptionPattern}}&")
+                    .append("zabbixItemDescriptionDefaultPattern={{zabbixItemDescriptionDefaultPattern}}&")
+                    .append("zabbixItemDescriptionCheckItemPattern={{zabbixItemDescriptionCheckItemPattern}}&")
+                    .append("zabbixItemDescriptionAttributePattern={{zabbixItemDescriptionAttributePattern}}")
                     .toString())
 
                     .choice()
@@ -197,8 +244,8 @@ public final class Main {
                     .end()
 
                     .log(LoggingLevel.DEBUG, logger, "${id} ${header.DeviceId} ${header.DeviceType} ");
-
         }
+
     }
 
 }

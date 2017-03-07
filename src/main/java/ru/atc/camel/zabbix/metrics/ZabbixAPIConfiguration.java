@@ -1,7 +1,5 @@
 package ru.atc.camel.zabbix.metrics;
 
-//import org.apache.camel.spi.UriParam;
-
 import org.apache.camel.spi.UriParams;
 
 @UriParams
@@ -20,6 +18,12 @@ public class ZabbixAPIConfiguration {
     private String zabbixapiurl;
 
     private String zabbixItemDescriptionPattern;
+
+    private String zabbixItemDescriptionAttributePattern;
+
+    private String zabbixItemDescriptionCheckItemPattern;
+
+    private String zabbixItemDescriptionDefaultPattern;
 
     private String itemCiPattern;
 
@@ -145,5 +149,29 @@ public class ZabbixAPIConfiguration {
 
     public void setUsejms(boolean usejms) {
         this.usejms = usejms;
+    }
+
+    public String getZabbixItemDescriptionAttributePattern() {
+        return zabbixItemDescriptionAttributePattern;
+    }
+
+    public void setZabbixItemDescriptionAttributePattern(String zabbixItemDescriptionAttributePattern) {
+        this.zabbixItemDescriptionAttributePattern = zabbixItemDescriptionAttributePattern;
+    }
+
+    public String getZabbixItemDescriptionDefaultPattern() {
+        return zabbixItemDescriptionDefaultPattern;
+    }
+
+    public void setZabbixItemDescriptionDefaultPattern(String zabbixItemDescriptionDefaultPattern) {
+        this.zabbixItemDescriptionDefaultPattern = zabbixItemDescriptionDefaultPattern;
+    }
+
+    public String getZabbixItemDescriptionCheckItemPattern() {
+        return zabbixItemDescriptionCheckItemPattern;
+    }
+
+    public void setZabbixItemDescriptionCheckItemPattern(String zabbixItemDescriptionCheckItemPattern) {
+        this.zabbixItemDescriptionCheckItemPattern = zabbixItemDescriptionCheckItemPattern;
     }
 }

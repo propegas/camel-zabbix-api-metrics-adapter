@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>ru.atc.monitoring</groupId>
     <artifactId>camel-zabbix-api-metrics-adapter</artifactId>
-    <version>0.4.4-SNAPSHOT</version>
+    <version>0.4.7-SNAPSHOT</version>
 
     <properties>
         <camel-version>2.17.3</camel-version>
@@ -26,20 +26,27 @@
         <dependency>
             <groupId>ru.atc.zabbix.general</groupId>
             <artifactId>ciitem-api</artifactId>
-            <version>1.1.9</version>
+            <version>1.1.11</version>
         </dependency>
 
         <dependency>
             <groupId>ru.atc.adapters.general</groupId>
             <artifactId>message-api</artifactId>
-            <version>1.2.2</version>
+            <version>1.2.3</version>
         </dependency>
 
-        <dependency>
-            <groupId>ru.atc.monitoring</groupId>
+        <!-- https://mvnrepository.com/artifact/io.github.hengyunabc/zabbix-api -->
+       <!-- <dependency>
+            <groupId>io.github.hengyunabc</groupId>
             <artifactId>zabbix-api</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
+            <version>0.0.2</version>
+        </dependency>-->
+
+         <dependency>
+             <groupId>ru.atc.monitoring</groupId>
+             <artifactId>zabbix-api</artifactId>
+             <version>1.1.2-SNAPSHOT</version>
+         </dependency>
 
         <dependency>
             <groupId>org.apache.camel</groupId>
@@ -72,7 +79,7 @@
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>
-            <version>1.2.8</version>
+            <version>1.2.24</version>
         </dependency>
 
         <dependency>
