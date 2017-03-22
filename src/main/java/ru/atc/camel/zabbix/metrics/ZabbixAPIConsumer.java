@@ -392,8 +392,8 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
             getRequest = RequestBuilder.newBuilder().method("item.get")
                     .paramEntry("search", filter)
-                    .paramEntry("output", new String[]{"hostid", "name", "itemid", "description", "key_", "value_type", "type", "lastclock", "units", "valuemapid"})
-                    .paramEntry("monitored", true)
+                    .paramEntry("output", new String[]{"hostid", "name", "itemid", "description", "key_", "value_type", "type", "lastclock", "units", "valuemapid", "status"})
+                    //.paramEntry("monitored", true)
                     .paramEntry("selectHosts", new String[]{"host", "name"})
                     .paramEntry("selectItemDiscovery", new String[]{"key_"})
 
@@ -437,6 +437,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             String name = item.getString("name");
             String key = item.getString("key_");
             String description = item.getString("description");
+            String status = item.getString("status");
             String prototypeKey = key;
 
             try {
@@ -471,7 +472,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
                 throw new RuntimeException("Failed while checking Zabbix Item CI");
             }
 
-            boolean enabled = true;
+            boolean enabled;
+            enabled = "0".equals(status);
+
             Matcher matcher = itemDescriptionSearchItemPattern.matcher(description);
             //if(description.matches("(?m)(.*)\\[DEFAULT::([\\w]*)\\](.*)")) {
             if (matcher.matches()) {

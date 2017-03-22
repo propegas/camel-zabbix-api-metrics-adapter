@@ -131,15 +131,89 @@ public final class ZabbixGeneral {
                 return updateIpAddress(zabbixAction);
             }
 
-            return updateZabbixItemStatusById(zabbixAction.getObjectId(),
-                    zabbixAction.getParameter("enabled"));
+            if (zabbixAction.getObjectId() != null)
+                return updateZabbixItemStatusById(zabbixAction.getObjectId(),
+                        zabbixAction.getParameter("enabled"));
+            else
+                return updateZabbixItemStatusByKey(zabbixAction.getParameter("key"),
+                        zabbixAction.getParameter("host"),
+                        zabbixAction.getParameter("enabled"));
         } catch (Exception e) {
             throw new ZabbixActionException("Updating zabbix item failed.", e);
         }
 
     }
 
+    private static boolean updateZabbixItemStatusByKey(String key, String hostName, String enabled) throws ZabbixActionException {
+
+        JSONObject host = getHostIdByItemKeyAndHost(key, hostName);
+        String hostId = null;
+        if (host != null) {
+            hostId = host.get("hostid").toString();
+        } else
+            return false;
+
+        JSONArray items = getItemsByKeyAndHostId(key, hostId);
+        if (items.isEmpty())
+            return false;
+
+        //String hostid = items.getJSONObject(0).get("hostid").toString();
+        JSONObject jsonObject = items.getJSONObject(0);
+        String itemid = jsonObject.get("itemid").toString();
+
+        if (itemid != null)
+            return updateZabbixItemStatusById(itemid, enabled);
+        else
+            return false;
+
+    }
+
+    private static JSONObject getHostIdByItemKeyAndHost(String key, String hostName) throws ZabbixActionException {
+        Request getRequest;
+        JSONObject getResponse;
+
+        try {
+            JSONObject filter = new JSONObject();
+            filter.put("name", new String[]{"*--" + hostName});
+            getRequest = RequestBuilder.newBuilder().method("host.get")
+                    .paramEntry("search", filter)
+                    .paramEntry("output", new String[]{"hostid"})
+                    .paramEntry("searchWildcardsEnabled", true)
+                    .build();
+
+        } catch (Exception ex) {
+            //genErrorMessage("Failed create JSON request for update Item's status .", ex);
+            throw new ZabbixActionException("Failed create JSON request for get Host by name.", ex);
+        }
+
+        JSONArray items;
+        try {
+            getResponse = zabbixApi.call(getRequest);
+            logger.debug("****** Finded Zabbix getRequest: {}", getRequest);
+
+            items = getResponse.getJSONArray("result");
+            logger.debug("****** Finded Zabbix getResponse: {}", getResponse);
+
+        } catch (Exception e) {
+            //genErrorMessage("Failed create JSON response for get Items by Key on Host.", e);
+            throw new ZabbixActionException("Failed get JSON response result for get host by name.", e);
+        }
+
+        if (items.isEmpty())
+            return null;
+
+        /*JSONArray itemids = items.getJSONArray("hostid");
+        if (itemids.isEmpty())
+            return null;
+
+*/
+        return items.getJSONObject(0);
+    }
+
     private static boolean updateZabbixItemStatusById(String itemId, String enabled) throws ZabbixActionException {
+        if (itemId == null || "".equals(itemId) || "null".equals(itemId))
+            return true;
+
         Request getRequest;
         JSONObject getResponse;
         int enabledValue = 1;
@@ -189,8 +263,20 @@ public final class ZabbixGeneral {
         if ("true".equals(enabledString))
             enabledValue = 0;
 
+        JSONObject host;
         String itemId = zabbixAction.getObjectId();
-        String hostId = getHostIdByItemId(itemId);
+        if (itemId != null)
+            host = getHostIdByItemId(itemId);
+        else
+            host = getHostIdByItemKeyAndHost(zabbixAction.getParameter("key"),
+                    zabbixAction.getParameter("host"));
+        String hostId;
+        if (host != null) {
+            hostId = host.get("hostid").toString();
+        } else {
+            return false;
+        }
+
         String checkKey = "vmwareIpaddressItemSet.pl";
         String createKey = String.format(VMWARE_IPADDRESS_CUSTOM_ITEM_KEY_FORMAT, ipAddress);
         String createName = VMWARE_IPADDRESS_CUSTOM_ITEM_NAME;
@@ -219,6 +305,15 @@ public final class ZabbixGeneral {
         }
 
         String[] customItems = customItemIds.toArray(new String[0]);
+        if (basedItem == null) {
+            basedItem = new JSONObject();
+            JSONObject hostById = getHostInterfaceByHostId(hostId);
+            basedItem.put("type", "2");
+            basedItem.put("interfaceid", hostById.get("interfaceid"));
+            basedItem.put("value_type", "4");
+            basedItem.put("delay", "120");
+            basedItem.put("history", "1");
+        }
 
         if (enabledValue == 0) {
             updateZabbixItemStatusById(discoveredDefaultItem, "false");
@@ -374,7 +469,7 @@ public final class ZabbixGeneral {
         //return null;
     }
 
-    private static String getHostIdByItemId(String itemId) throws ZabbixActionException {
+    private static JSONObject getHostIdByItemId(String itemId) throws ZabbixActionException {
         Request getRequest;
         JSONObject getResponse;
         try {
@@ -382,9 +477,10 @@ public final class ZabbixGeneral {
 
             getRequest = RequestBuilder.newBuilder().method("item.get")
                     .paramEntry("search", filter)
-                    .paramEntry("output", new String[]{"name", "itemid", "key_", "hostid"})
+                    .paramEntry("output", new String[]{"name", "itemid", "key_", "hostid", "interfaces"})
                     .paramEntry("itemids", new String[]{itemId})
                     .paramEntry("selectItemDiscovery", new String[]{"key_"})
+                    .paramEntry("selectInterfaces", "true")
                     .build();
 
         } catch (Exception ex) {
@@ -409,8 +505,48 @@ public final class ZabbixGeneral {
         if (items.isEmpty())
             return null;
 
-        String hostid = items.getJSONObject(0).get("hostid").toString();
-        return hostid;
+        //String hostid = items.getJSONObject(0).get("hostid").toString();
+        JSONObject jsonObject = items.getJSONObject(0);
+        return jsonObject;
+        //return items;
+        //return null;
+    }
+
+    private static JSONObject getHostInterfaceByHostId(String hostId) throws ZabbixActionException {
+        Request getRequest;
+        JSONObject getResponse;
+        try {
+
+            getRequest = RequestBuilder.newBuilder().method("hostinterface.get")
+                    .paramEntry("hostids", new String[]{hostId})
+                    .paramEntry("output", "extend")
+                    .build();
+
+        } catch (Exception ex) {
+            //genErrorMessage("Failed create JSON request for get Items by Key on Host.", ex);
+            throw new ZabbixActionException("Failed create JSON request for get Host by ID.", ex);
+        }
+        JSONArray items;
+        try {
+            getResponse = zabbixApi.call(getRequest);
+            logger.debug("****** Finded Zabbix getRequest: {}", getRequest);
+
+            items = getResponse.getJSONArray("result");
+            logger.debug("****** Finded Zabbix getResponse: {}", getResponse);
+
+        } catch (Exception e) {
+            //genErrorMessage("Failed create JSON response for get Items by Key on Host.", e);
+            throw new ZabbixActionException("Failed get JSON response result for get Host by ID.", e);
+        }
+
+        logger.info("Found Zabbix Items by Id count: {}", items.size());
+
+        if (items.isEmpty())
+            return null;
+
+        //String hostid = items.getJSONObject(0).get("hostid").toString();
+        JSONObject jsonObject = items.getJSONObject(0);
+        return jsonObject;
         //return items;
         //return null;
     }
