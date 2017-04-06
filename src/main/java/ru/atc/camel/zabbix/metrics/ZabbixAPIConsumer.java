@@ -221,9 +221,9 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
 
         try {
 
-            getRequest = RequestBuilder.newBuilder().method("valuemapping.get")
+            getRequest = RequestBuilder.newBuilder().method("valuemap.get")
                     .paramEntry("output", "extend")
-                    .paramEntry("with_mappings", true)
+                    .paramEntry("selectMappings", "extend")
                     .build();
 
         } catch (Exception ex) {
@@ -257,7 +257,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
                 int valuemapid = mapping.getIntValue("valuemapid");
                 for (int j = 0; j < valueMappings.size(); j++) {
                     JSONObject valueMapping = valueMappings.getJSONObject(j);
-                    int mappingid = valueMapping.getIntValue("mappingid");
+                    int mappingid = valueMapping.getIntValue("value");
                     int value = valueMapping.getIntValue("value");
                     String newvalue = valueMapping.getString("newvalue");
                     sql = String.format("%s ('%d', '%s', '%d', '%d', '%s' ),",

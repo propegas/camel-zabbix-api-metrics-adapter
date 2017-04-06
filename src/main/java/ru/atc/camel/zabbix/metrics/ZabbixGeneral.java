@@ -39,7 +39,8 @@ import static ru.atc.adapters.message.CamelMessageManager.genAndSendErrorMessage
  */
 public final class ZabbixGeneral {
 
-    public static final String VMWARE_IPADDRESS_CUSTOM_ITEM_KEY_FORMAT = "vmwareIpaddressItemSet.pl[\"{HOST.HOST}\", \"vmware.ipaddress\", \"%s\"]";
+    public static final String VMWARE_IPADDRESS_CUSTOM_ITEM_KEY_FORMAT = "vmwareIpaddressItemSet.pl[\"{HOST.HOST}\", " +
+            "\"vmware.ipaddress\", \"%s\", {$OID}\", \"{$SNMP_COMMUNITY}\"]";
     public static final String VMWARE_IPADDRESS_CUSTOM_ITEM_NAME = "Collect custom vmware.ipaddress (by adapter)";
     private static final int CONNECT_TIMEOUT = 10000;
     private static final int SOCKET_TIMEOUT = 120000;
@@ -308,7 +309,7 @@ public final class ZabbixGeneral {
         if (basedItem == null) {
             basedItem = new JSONObject();
             JSONObject hostById = getHostInterfaceByHostId(hostId);
-            basedItem.put("type", "2");
+            basedItem.put("type", "10");
             basedItem.put("interfaceid", hostById.get("interfaceid"));
             basedItem.put("value_type", "4");
             basedItem.put("delay", "120");
