@@ -2,12 +2,10 @@ package ru.atc.camel.zabbix.metrics;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import ru.atc.monitoring.zabbix.api.DefaultZabbixApi;
-import ru.atc.monitoring.zabbix.api.Request;
-import ru.atc.monitoring.zabbix.api.RequestBuilder;
 import org.apache.camel.Exchange;
 import org.apache.camel.Processor;
 import org.apache.camel.impl.ScheduledPollConsumer;
+import org.apache.commons.text.StringEscapeUtils;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -15,6 +13,9 @@ import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.atc.monitoring.zabbix.api.DefaultZabbixApi;
+import ru.atc.monitoring.zabbix.api.Request;
+import ru.atc.monitoring.zabbix.api.RequestBuilder;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -89,7 +90,7 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
             String zabbixapiurl = endpoint.getConfiguration().getZabbixapiurl();
             String username = endpoint.getConfiguration().getUsername();
             String password = endpoint.getConfiguration().getPassword();
-           // String adapterName = endpoint.getConfiguration().getAdaptername();
+            // String adapterName = endpoint.getConfiguration().getAdaptername();
 
             //zabbixApi = getZabbixApi(this, zabbixapiurl, username, password, adapterName);
 
@@ -158,22 +159,27 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
         //logger.info("Create Exchange container for Refresh metrics in correlation API...");
         Exchange exchange = getEndpoint().createExchange();
         exchange.getIn().setHeader("queueName", "Refresh");
+        MetricEvent metricEvent = new MetricEvent();
+        metricEvent.setAction("updateMetrics");
+        exchange.getIn().setBody(metricEvent, MetricEvent.class);
+        exchange.getIn().setHeader("action", "updateMetrics");
 
         try {
             logger.info("Wait 1 minute before processing refresh...");
-            TimeUnit.MINUTES.sleep(1);
+            TimeUnit.SECONDS.sleep(60);
             logger.info("Create Exchange container for Refresh metrics in correlation API...");
             getProcessor().process(exchange);
             if (exchange.getException() != null) {
-                genErrorMessage("Ошибка при выполнении HTTP-запроса", exchange.getException());
+                genErrorMessage("Ошибка при отправке JMS-запроса", exchange.getException());
             }
         } catch (Exception e) {
-            genErrorMessage("Ошибка при выполнении HTTP-запроса", e);
+            genErrorMessage("Ошибка при отправке JMS-запроса", e);
         }
     }
 
     private void processExchangeValueMappings(String fullSql) {
         logger.info("Create Exchange container for Metrics Value Mappings...");
+        logger.debug("Mappings SQL: {}", fullSql);
         Exchange exchange = getEndpoint().createExchange();
         exchange.getIn().setHeader("queueName", "Mappings");
         exchange.getIn().setBody(fullSql);
@@ -259,7 +265,8 @@ public class ZabbixAPIConsumer extends ScheduledPollConsumer {
                     JSONObject valueMapping = valueMappings.getJSONObject(j);
                     int mappingid = valueMapping.getIntValue("value");
                     int value = valueMapping.getIntValue("value");
-                    String newvalue = valueMapping.getString("newvalue");
+                    String newvalue1 = valueMapping.getString("newvalue");
+                    String newvalue = StringEscapeUtils.escapeJson(newvalue1);
                     sql = String.format("%s ('%d', '%s', '%d', '%d', '%s' ),",
                             sql,
                             valuemapid,

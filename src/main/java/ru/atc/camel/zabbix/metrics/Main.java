@@ -120,6 +120,13 @@ public final class Main {
             zabbixAction.setJsonView(ZabbixAction.class);
             zabbixAction.setPrettyPrint(true);
 
+            JsonDataFormat metricEvent = new JsonDataFormat();
+            metricEvent.setPrettyPrint(true);
+            metricEvent.setLibrary(JsonLibrary.Jackson);
+            metricEvent.setJsonView(MetricEvent.class);
+            metricEvent.setAllowJmsType(true);
+            metricEvent.setPrettyPrint(true);
+
             PropertiesComponent properties = new PropertiesComponent();
             properties.setLocation("classpath:zabbixapi.properties");
             getContext().addComponent("properties", properties);
@@ -227,8 +234,10 @@ public final class Main {
                     .log(LoggingLevel.DEBUG, logger, "**** Inserted Metrics mapping ${body[itemid]}")
 
                     .when(header("queueName").isEqualTo("Refresh"))
-                    .to("{{api.metrics.refresh}}")
-                    .log(LoggingLevel.INFO, logger, "**** Send HTTP request to API for correlation context refresh ")
+                    .marshal(metricEvent)
+//                    .convertBodyTo(TextMessage.class)
+                    .to("activemq:{{metricsqueue}}")
+                    .log(LoggingLevel.INFO, logger, "**** Send JMS request for correlation context refresh ")
 
                     .otherwise()
                     .choice()
